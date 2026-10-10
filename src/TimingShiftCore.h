@@ -1,6 +1,6 @@
 // TimingShiftCore.h
 // -----------------------------------------------------------------------------
-// Host-independent image processing for the "Timing Shift FX" effect.
+// Host-independent image processing for the "Timing Shift FX" ghost effect.
 //
 // This file knows NOTHING about OpenFX or DaVinci Resolve. It only works on
 // plain RGBA float buffers. That separation lets us unit-test the look on any
@@ -9,16 +9,12 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
 
 namespace tsfx {
 
-// Maximum number of temporally offset frames ("echoes") we ever blend.
-constexpr int kMaxTrailFrames = 4;
-
 // A read-only view of an RGBA float image (4 floats per pixel).
-// Coordinates follow OpenFX "pixel coordinates": bounds are [x1,x2) x [y1,y2).
-// rowBytes may be negative (bottom-up images) - we always use it as given.
+// Coordinates follow OpenFX "pixel coordinates": bounds are [x1,x2) x [y1,y2),
+// y grows upwards. rowBytes may be negative (top-down images).
 struct ImageView {
     const void* data = nullptr;
     int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
@@ -45,66 +41,38 @@ struct MutableImageView {
     }
 };
 
-enum class Quality : int { Draft = 0, Normal = 1, Best = 2 };
-
 // All user parameters, already evaluated at the current time.
 // Distances are in "pixels at 1920 px width"; the core rescales them so the
 // look is identical for HD, UHD and Resolve's proxy / render-scale previews.
 struct Settings {
-    bool enabled = true;
-    double masterIntensity = 1.0;   // 0..2, scales every artifact
-    int timingOffset = 2;           // frames; >0 = past frames, <0 = future
-    double hDisplacement = 24.0;    // px, signed: + = right, - = left
-    double bandSize = 40.0;         // px, average height of displaced bands
-    double bandDensity = 0.35;      // 0..1, fraction of bands that are displaced
-    double rgbSplit = 3.0;          // px
-    double redShift = 1.0;          // -1..1 multiplier of rgbSplit
-    double greenShift = 0.0;
-    double blueShift = -1.0;
-    double ghostAmount = 0.25;      // 0..1
-    int trailLength = 1;            // 1..kMaxTrailFrames echo frames
-    double ghostShift = 8.0;        // px horizontal offset of the ghost image
-    double jitterAmount = 2.0;      // px
-    double jitterSpeed = 1.0;       // pattern changes per frame (0 = frozen)
-    bool streakEnable = false;
-    double streakAmount = 0.3;      // 0..1
-    double streakLength = 60.0;     // px
-    double blend = 1.0;             // 0..1 mix with the untouched original
-    int seed = 1;
-    Quality quality = Quality::Normal;
+    double ghostAmount = 0.4;      // 0..1  opacity of the ghost image
+    double ghostDistance = 40.0;   // px    how far the ghost is moved
+    double ghostDirection = 90.0;  // deg   0 = right, 90 = up, 180 = left, -90 = down
+    double ghostStretch = 0.3;     // 0..1  smear of the ghost along the direction
+    int timingOffset = 2;          // frames; >0 = ghost shows the past, <0 = the future
 };
 
 // The frames the effect reads.
-//  current  - the source frame at the render time (required)
-//  echoes[k] - source frame at time - timingOffset*(k+1); may be the current
-//              frame again when the host could not deliver that frame.
+//  current - the source frame at the render time (required)
+//  ghost   - source frame at time - timingOffset. If invalid (e.g. the host
+//            could not deliver it) the current frame is used instead.
 struct FrameInputs {
     ImageView current;
-    ImageView echoes[kMaxTrailFrames];
-    int numEchoes = 0;
+    ImageView ghost;
 };
 
-// Number of echo frames the given settings need (respects quality limits).
-int echoFramesNeeded(const Settings& s);
+// True if the settings need a second (time-shifted) frame.
+bool needsGhostFrame(const Settings& s);
 
 // Render the effect into dst for the pixels inside the render window.
-//  time        - host time in frames (fractional values allowed)
 //  pixelScale  - (image width in canonical px / 1920) * renderScale.x
 //  numThreads  - <= 0 means "use all hardware threads"
 // Returns false if the inputs are unusable (dst is left untouched).
 bool render(const Settings& s, const FrameInputs& in,
             const MutableImageView& dst, int winX1, int winY1, int winX2,
-            int winY2, double time, double pixelScale, int numThreads = 0);
+            int winY2, double pixelScale, int numThreads = 0);
 
 // True if the settings produce an unchanged image (lets the host skip us).
 bool isIdentity(const Settings& s);
-
-// Built-in looks. presetSubtle() == the default value of every parameter.
-Settings presetSubtle();
-Settings presetMusicVideo();
-
-// Deterministic hash noise in [0,1). Exposed for tests.
-float hashNoise(std::uint32_t seed, std::int64_t a, std::int64_t b,
-                std::uint32_t channel);
 
 }  // namespace tsfx

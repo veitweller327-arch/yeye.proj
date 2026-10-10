@@ -45,14 +45,13 @@ Der Reihe nach prüfen:
 
 ## Ruckelige Wiedergabe
 
-* Quality auf **Draft** stellen.
-* **Trail Length** reduzieren (jedes Echo = ein weiterer dekodierter Frame).
+* **Ghost Distortion** reduzieren (größter Einfluss auf die Rechenzeit).
 * Timeline-Proxy-Auflösung reduzieren, Render Cache nutzen, Optimized Media
   für H.264/H.265 (siehe [03-Installieren-und-Benutzen.md](03-Installieren-und-Benutzen.md)).
 
 ## GPU-Probleme
 
-Version 1.0 rechnet **auf der CPU** (alle Kerne). Resolve schiebt dafür das
+Version 1.1 rechnet **auf der CPU** (alle Kerne). Resolve schiebt dafür das
 Bild von der GPU in den Arbeitsspeicher und zurück. Folgen:
 
 * Der Effekt funktioniert unabhängig von Grafikkarte/Treiber
@@ -65,6 +64,11 @@ Bild von der GPU in den Arbeitsspeicher und zurück. Folgen:
 Ein GPU-Pfad (CUDA/OpenCL) ist als Stufe 4 geplant – siehe
 [01-Architektur.md](01-Architektur.md).
 
+## Projekte mit Version 1.0
+
+Version 1.1 hat andere Regler. In Projekten, in denen schon Version 1.0
+benutzt wurde, den Effekt einmal entfernen und neu auf den Clip ziehen.
+
 ## Der Zeitversatz ist am Clipanfang/-ende "eingefroren"
 
 Gewollt: Vor dem ersten bzw. nach dem letzten verfügbaren Frame wird der
@@ -72,7 +76,7 @@ erste/letzte Frame verwendet, statt ein schwarzes Bild zu zeigen.
 
 ## Ergebnis ändert sich beim erneuten Abspielen
 
-Sollte nicht passieren – der Effekt ist für gleichen Seed + gleiche Position
-deterministisch (getestet). Prüfen, ob Regler keyframes haben oder ob Resolve
+Sollte nicht passieren – der Effekt enthält keinen Zufall und ist für gleiche
+Regler + gleiche Position deterministisch (getestet). Prüfen, ob Regler keyframes haben oder ob Resolve
 die Frames an einer anderen Clipposition neu berechnet (z. B. nach Trimmen /
 Retime). Bitte melden, falls es trotzdem auftritt.

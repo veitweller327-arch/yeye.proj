@@ -85,7 +85,7 @@ führt beide Tests aus und lädt Plugin + Setup.exe als Artefakt hoch
 ```bash
 pip install pillow numpy
 python tools/make_preview.py mein_bild.png vorschau
-# → vorschau_subtle.png, vorschau_musicvideo.png
+# → vorschau_default.png, vorschau_strong_up.png, vorschau_right_sharp.png
 ```
 
 ## Was jede Datei macht
@@ -93,9 +93,9 @@ python tools/make_preview.py mein_bild.png vorschau
 | Datei | Zweck |
 |-------|-------|
 | `CMakeLists.txt` | Bauanleitung für CMake: Kern-Bibliothek, Plugin (`.ofx`), Tests, Bundle-Ordner |
-| `src/TimingShiftCore.h` | Alle Einstellungen (`Settings`), Bild-Strukturen, Presets |
-| `src/TimingShiftCore.cpp` | Der eigentliche Effekt (6 Schritte pro Zeile, Multithreading) |
+| `src/TimingShiftCore.h` | Die 5 Einstellungen (`Settings`) und Bild-Strukturen |
+| `src/TimingShiftCore.cpp` | Der eigentliche Ghost-Effekt (Multithreading) |
 | `src/TimingShiftPlugin.cpp` | OFX-Schnittstelle zu Resolve |
-| `tests/core_tests.cpp` | Prüft Determinismus, keine schwarzen Ränder, Alpha, HD/UHD-Skalierung, Benchmark |
+| `tests/core_tests.cpp` | Prüft Richtung/Abstand/Verzerrung, Determinismus, keine schwarzen Ränder, Alpha, HD/UHD, Benchmark |
 | `tests/mock_host.cpp` | Lädt die echte `.ofx`-Datei und spielt alle OFX-Aktionen durch |
 | `installer/TimingShiftFX.nsi` | Setup.exe-Skript (installiert nach `Common Files\OFX\Plugins`) |

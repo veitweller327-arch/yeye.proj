@@ -1,9 +1,9 @@
-TIMING SHIFT FX 1.0 - OpenFX-Effekt fuer DaVinci Resolve 20 Studio (Windows 10/11, 64 Bit)
+TIMING SHIFT FX 1.1 - OpenFX-Effekt fuer DaVinci Resolve 20 Studio (Windows 10/11, 64 Bit)
 =========================================================================================
 
 INSTALLATION (einfachster Weg)
   1. DaVinci Resolve schliessen.
-  2. "TimingShiftFX-1.0.0-Windows-Setup.exe" doppelklicken.
+  2. "TimingShiftFX-1.1.0-Windows-Setup.exe" doppelklicken.
      - Windows SmartScreen meldet evtl. "Unbekannter Herausgeber" (die Datei ist
        nicht digital signiert): "Weitere Informationen" -> "Trotzdem ausfuehren".
      - Die Frage nach Administratorrechten mit "Ja" bestaetigen.
@@ -20,7 +20,7 @@ ALTERNATIVE OHNE SETUP.EXE (ZIP-Paket)
   C:\Program Files\Common Files\OFX\Plugins\TimingShiftFX.ofx.bundle\Contents\Win64\TimingShiftFX.ofx
 
 EFFEKT BENUTZEN
-  Edit-Seite:  Effects (oben links) -> Toolbox/OpenFX -> Filters -> "Timing Shift FX"
+  Edit-Seite:  Effects (oben links) -> Suchfeld "Timing" -> "Timing Shift FX"
                auf einen Clip in der Timeline ziehen -> Clip anklicken ->
                Inspector (oben rechts) -> Reiter "Effects".
   Color-Seite: Node auswaehlen -> Effects-Bibliothek (oben rechts) ->

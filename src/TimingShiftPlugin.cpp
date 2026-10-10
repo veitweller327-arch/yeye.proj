@@ -14,7 +14,6 @@
 // -----------------------------------------------------------------------------
 #include <cmath>
 #include <cstring>
-#include <string>
 
 #include "ofxCore.h"
 #include "ofxImageEffect.h"
@@ -27,7 +26,7 @@
 #define TSFX_LABEL "Timing Shift FX"
 #define TSFX_GROUP "Timing Shift FX"
 #define TSFX_VERSION_MAJOR 1
-#define TSFX_VERSION_MINOR 0
+#define TSFX_VERSION_MINOR 1
 
 namespace {
 
@@ -38,28 +37,11 @@ const OfxParameterSuiteV1* gParam = nullptr;
 
 // ---- parameter names (internal ids, never change them after release!) ----
 namespace P {
-const char* const preset = "preset";
-const char* const enable = "enable";
-const char* const intensity = "masterIntensity";
-const char* const blend = "blend";
-const char* const quality = "quality";
-const char* const timingOffset = "timingOffset";
 const char* const ghostAmount = "ghostAmount";
-const char* const trailLength = "trailLength";
-const char* const ghostShift = "ghostShift";
-const char* const hDisp = "hDisplacement";
-const char* const bandSize = "bandSize";
-const char* const bandDensity = "bandDensity";
-const char* const rgbSplit = "rgbSplit";
-const char* const redShift = "redShift";
-const char* const greenShift = "greenShift";
-const char* const blueShift = "blueShift";
-const char* const jitterAmount = "jitterAmount";
-const char* const jitterSpeed = "jitterSpeed";
-const char* const seed = "seed";
-const char* const streakEnable = "streakEnable";
-const char* const streakAmount = "streakAmount";
-const char* const streakLength = "streakLength";
+const char* const ghostDistance = "ghostDistance";
+const char* const ghostDirection = "ghostDirection";
+const char* const ghostStretch = "ghostStretch";
+const char* const timingOffset = "timingOffset";
 }  // namespace P
 
 // ---------------------------------------------------------------------------
@@ -107,32 +89,6 @@ void defineInt(OfxParamSetHandle ps, const char* name, const char* label,
     gProp->propSetInt(p, kOfxParamPropDisplayMax, 0, mx);
 }
 
-void defineBool(OfxParamSetHandle ps, const char* name, const char* label,
-                const char* hint, const char* parent, bool def) {
-    OfxPropertySetHandle p =
-        defineParam(ps, kOfxParamTypeBoolean, name, label, hint, parent);
-    gProp->propSetInt(p, kOfxParamPropDefault, 0, def ? 1 : 0);
-}
-
-void defineChoice(OfxParamSetHandle ps, const char* name, const char* label,
-                  const char* hint, const char* parent,
-                  std::initializer_list<const char*> options, int def,
-                  bool animates) {
-    OfxPropertySetHandle p =
-        defineParam(ps, kOfxParamTypeChoice, name, label, hint, parent);
-    int i = 0;
-    for (const char* o : options) gProp->propSetString(p, kOfxParamPropChoiceOption, i++, o);
-    gProp->propSetInt(p, kOfxParamPropDefault, 0, def);
-    gProp->propSetInt(p, kOfxParamPropAnimates, 0, animates ? 1 : 0);
-}
-
-void defineGroup(OfxParamSetHandle ps, const char* name, const char* label,
-                 bool open) {
-    OfxPropertySetHandle p =
-        defineParam(ps, kOfxParamTypeGroup, name, label, nullptr, nullptr);
-    gProp->propSetInt(p, kOfxParamPropGroupOpen, 0, open ? 1 : 0);
-}
-
 OfxParamHandle param(OfxParamSetHandle ps, const char* name) {
     OfxParamHandle h = nullptr;
     gParam->paramGetHandle(ps, name, &h, nullptr);
@@ -154,63 +110,14 @@ int getInt(OfxParamSetHandle ps, const char* name, double t, int fallback) {
 // Reads every parameter at the given time into a Settings struct.
 tsfx::Settings readSettings(OfxImageEffectHandle effect, double t) {
     OfxParamSetHandle ps = paramSetOf(effect);
-    tsfx::Settings d;  // defaults as fallback
+    const tsfx::Settings d;  // defaults as fallback
     tsfx::Settings s;
-    s.enabled = getInt(ps, P::enable, t, 1) != 0;
-    s.masterIntensity = getDouble(ps, P::intensity, t, d.masterIntensity);
-    s.blend = getDouble(ps, P::blend, t, d.blend);
-    s.quality = static_cast<tsfx::Quality>(getInt(ps, P::quality, t, 1));
-    s.timingOffset = getInt(ps, P::timingOffset, t, d.timingOffset);
     s.ghostAmount = getDouble(ps, P::ghostAmount, t, d.ghostAmount);
-    s.trailLength = getInt(ps, P::trailLength, t, d.trailLength);
-    s.ghostShift = getDouble(ps, P::ghostShift, t, d.ghostShift);
-    s.hDisplacement = getDouble(ps, P::hDisp, t, d.hDisplacement);
-    s.bandSize = getDouble(ps, P::bandSize, t, d.bandSize);
-    s.bandDensity = getDouble(ps, P::bandDensity, t, d.bandDensity);
-    s.rgbSplit = getDouble(ps, P::rgbSplit, t, d.rgbSplit);
-    s.redShift = getDouble(ps, P::redShift, t, d.redShift);
-    s.greenShift = getDouble(ps, P::greenShift, t, d.greenShift);
-    s.blueShift = getDouble(ps, P::blueShift, t, d.blueShift);
-    s.jitterAmount = getDouble(ps, P::jitterAmount, t, d.jitterAmount);
-    s.jitterSpeed = getDouble(ps, P::jitterSpeed, t, d.jitterSpeed);
-    s.seed = getInt(ps, P::seed, t, d.seed);
-    s.streakEnable = getInt(ps, P::streakEnable, t, 0) != 0;
-    s.streakAmount = getDouble(ps, P::streakAmount, t, d.streakAmount);
-    s.streakLength = getDouble(ps, P::streakLength, t, d.streakLength);
-    if (s.quality < tsfx::Quality::Draft || s.quality > tsfx::Quality::Best)
-        s.quality = tsfx::Quality::Normal;
+    s.ghostDistance = getDouble(ps, P::ghostDistance, t, d.ghostDistance);
+    s.ghostDirection = getDouble(ps, P::ghostDirection, t, d.ghostDirection);
+    s.ghostStretch = getDouble(ps, P::ghostStretch, t, d.ghostStretch);
+    s.timingOffset = getInt(ps, P::timingOffset, t, d.timingOffset);
     return s;
-}
-
-void applyPreset(OfxImageEffectHandle effect, const tsfx::Settings& s) {
-    OfxParamSetHandle ps = paramSetOf(effect);
-    auto setD = [&](const char* n, double v) {
-        if (OfxParamHandle h = param(ps, n)) gParam->paramSetValue(h, v);
-    };
-    auto setI = [&](const char* n, int v) {
-        if (OfxParamHandle h = param(ps, n)) gParam->paramSetValue(h, v);
-    };
-    setI(P::enable, s.enabled ? 1 : 0);
-    setD(P::intensity, s.masterIntensity);
-    setD(P::blend, s.blend);
-    setI(P::quality, static_cast<int>(s.quality));
-    setI(P::timingOffset, s.timingOffset);
-    setD(P::ghostAmount, s.ghostAmount);
-    setI(P::trailLength, s.trailLength);
-    setD(P::ghostShift, s.ghostShift);
-    setD(P::hDisp, s.hDisplacement);
-    setD(P::bandSize, s.bandSize);
-    setD(P::bandDensity, s.bandDensity);
-    setD(P::rgbSplit, s.rgbSplit);
-    setD(P::redShift, s.redShift);
-    setD(P::greenShift, s.greenShift);
-    setD(P::blueShift, s.blueShift);
-    setD(P::jitterAmount, s.jitterAmount);
-    setD(P::jitterSpeed, s.jitterSpeed);
-    setI(P::seed, s.seed);
-    setI(P::streakEnable, s.streakEnable ? 1 : 0);
-    setD(P::streakAmount, s.streakAmount);
-    setD(P::streakLength, s.streakLength);
 }
 
 // ---------------------------------------------------------------------------
@@ -234,9 +141,9 @@ OfxStatus describe(OfxImageEffectHandle effect) {
     gProp->propSetString(props, kOfxPropLabel, 0, TSFX_LABEL);
     gProp->propSetString(props, kOfxImageEffectPluginPropGrouping, 0, TSFX_GROUP);
     gProp->propSetString(props, kOfxPropPluginDescription, 0,
-        "Analog timing-error look: time-shifted bands, RGB misalignment, "
-        "ghost trails, jitter and streaks. Inspired by analog timing "
-        "artifacts; not affiliated with ARRI.");
+        "Analog timing-error ghost: a time-shifted, displaced and stretched "
+        "copy of the image. Inspired by analog timing artifacts; not "
+        "affiliated with ARRI.");
     gProp->propSetString(props, kOfxImageEffectPropSupportedContexts, 0,
                          kOfxImageEffectContextFilter);
     gProp->propSetString(props, kOfxImageEffectPropSupportedPixelDepths, 0,
@@ -269,81 +176,22 @@ OfxStatus describeInContext(OfxImageEffectHandle effect) {
     OfxParamSetHandle ps = paramSetOf(effect);
     const tsfx::Settings d;
 
-    defineChoice(ps, P::preset, "Look Preset",
-                 "Choose a look to load its values. 'Custom' keeps your values.",
-                 nullptr, {"Custom", "Subtle Cinematic", "Music Video Extreme"},
-                 0, false);
-    defineBool(ps, P::enable, "Effect Enable", "Turns the whole effect on/off.",
-               nullptr, true);
-    defineDouble(ps, P::intensity, "Master Intensity",
-                 "Scales every artifact at once (1 = as set below).", nullptr,
-                 d.masterIntensity, 0, 4, 0, 2, 0.01);
-    defineDouble(ps, P::blend, "Blend Amount",
-                 "Mix between original (0) and effect (1).", nullptr, d.blend,
-                 0, 1, 0, 1, 0.01);
-    defineChoice(ps, P::quality, "Quality",
-                 "Draft = fast nearest sampling, 1 echo frame. Normal = smooth "
-                 "sampling, up to 2 echo frames. Best = all echo frames.",
-                 nullptr, {"Draft (fast)", "Normal", "Best (slow)"},
-                 static_cast<int>(d.quality), false);
-
-    defineGroup(ps, "grpTiming", "Timing Shift & Ghosting", true);
+    defineDouble(ps, P::ghostAmount, "Ghost Amount",
+                 "Strength (opacity) of the ghost image. 0 = off, 1 = only ghost.",
+                 nullptr, d.ghostAmount, 0, 1, 0, 1, 0.01);
+    defineDouble(ps, P::ghostDistance, "Ghost Distance",
+                 "How far the ghost is moved, in pixels (at 1080p).", nullptr,
+                 d.ghostDistance, 0, 4000, 0, 500, 1);
+    defineDouble(ps, P::ghostDirection, "Ghost Direction",
+                 "Direction in degrees: 0 = right, 90 = up, 180 = left, -90 = down.",
+                 nullptr, d.ghostDirection, -180, 180, -180, 180, 1);
+    defineDouble(ps, P::ghostStretch, "Ghost Distortion",
+                 "Stretches / smears the ghost along its direction. 0 = sharp copy.",
+                 nullptr, d.ghostStretch, 0, 1, 0, 1, 0.01);
     defineInt(ps, P::timingOffset, "Timing Offset (frames)",
-              "How many frames the shifted image lags behind (+) or runs ahead (-).",
-              "grpTiming", d.timingOffset, -12, 12);
-    defineDouble(ps, P::ghostAmount, "Ghosting Amount",
-                 "Opacity of the time-shifted ghost image.", "grpTiming",
-                 d.ghostAmount, 0, 1, 0, 1, 0.01);
-    defineInt(ps, P::trailLength, "Trail Length (echoes)",
-              "Number of ghost echoes (each one Timing Offset further away).",
-              "grpTiming", d.trailLength, 1, tsfx::kMaxTrailFrames);
-    defineDouble(ps, P::ghostShift, "Ghost Horizontal Shift",
-                 "Sideways offset of each ghost echo in pixels (at 1080p).",
-                 "grpTiming", d.ghostShift, -1000, 1000, -200, 200, 0.5);
-
-    defineGroup(ps, "grpDisp", "Band Displacement", true);
-    defineDouble(ps, P::hDisp, "Horizontal Displacement",
-                 "Push of the displaced bands in pixels (at 1080p). "
-                 "Positive = right, negative = left.",
-                 "grpDisp", d.hDisplacement, -2000, 2000, -400, 400, 0.5);
-    defineDouble(ps, P::bandSize, "Band Size",
-                 "Average height of the displaced bands in pixels (at 1080p).",
-                 "grpDisp", d.bandSize, 1, 2000, 2, 400, 1);
-    defineDouble(ps, P::bandDensity, "Band Density",
-                 "How many bands are displaced (0 = none, 1 = all).", "grpDisp",
-                 d.bandDensity, 0, 1, 0, 1, 0.01);
-
-    defineGroup(ps, "grpRgb", "Colour Channels", true);
-    defineDouble(ps, P::rgbSplit, "RGB Split",
-                 "Distance between colour channels in pixels (at 1080p).",
-                 "grpRgb", d.rgbSplit, 0, 500, 0, 50, 0.1);
-    defineDouble(ps, P::redShift, "Red Offset", "Red direction/amount (x RGB Split).",
-                 "grpRgb", d.redShift, -2, 2, -1, 1, 0.01);
-    defineDouble(ps, P::greenShift, "Green Offset", "Green direction/amount (x RGB Split).",
-                 "grpRgb", d.greenShift, -2, 2, -1, 1, 0.01);
-    defineDouble(ps, P::blueShift, "Blue Offset", "Blue direction/amount (x RGB Split).",
-                 "grpRgb", d.blueShift, -2, 2, -1, 1, 0.01);
-
-    defineGroup(ps, "grpJitter", "Analog Jitter", true);
-    defineDouble(ps, P::jitterAmount, "Jitter Amount",
-                 "Frame-to-frame shake in pixels (at 1080p).", "grpJitter",
-                 d.jitterAmount, 0, 500, 0, 30, 0.1);
-    defineDouble(ps, P::jitterSpeed, "Jitter Speed",
-                 "How often the random pattern changes (1 = every frame, "
-                 "0.5 = every 2nd frame, smooth; 0 = frozen).",
-                 "grpJitter", d.jitterSpeed, 0, 10, 0, 4, 0.01);
-    defineInt(ps, P::seed, "Random Seed",
-              "Different number = different (but repeatable) random pattern.",
-              "grpJitter", d.seed, 0, 99999);
-
-    defineGroup(ps, "grpStreak", "Horizontal Streaks", false);
-    defineBool(ps, P::streakEnable, "Enable Streaks",
-               "Turns the horizontal smear on/off.", "grpStreak", d.streakEnable);
-    defineDouble(ps, P::streakAmount, "Streak Amount", "Strength of the smear.",
-                 "grpStreak", d.streakAmount, 0, 1, 0, 1, 0.01);
-    defineDouble(ps, P::streakLength, "Streak Length",
-                 "Length of the smear in pixels (at 1080p).", "grpStreak",
-                 d.streakLength, 1, 5000, 2, 1000, 1);
+              "Which frame the ghost shows: +2 = 2 frames ago, -2 = 2 frames ahead, "
+              "0 = same frame.",
+              nullptr, d.timingOffset, -12, 12);
     return kOfxStatOK;
 }
 
@@ -362,8 +210,10 @@ bool sourceFrameRange(OfxImageEffectHandle effect, double& first, double& last) 
     return last >= first;
 }
 
-double echoTime(OfxImageEffectHandle effect, double t, int offset, int k) {
-    double e = t - static_cast<double>(offset) * (k + 1);
+// Time of the ghost frame, clamped to the clip so we never ask for frames
+// that do not exist.
+double ghostTime(OfxImageEffectHandle effect, double t, int offset) {
+    double e = t - static_cast<double>(offset);
     double first, last;
     if (sourceFrameRange(effect, first, last)) {
         if (e < first) e = first;  // clip start: reuse the first frame
@@ -378,11 +228,10 @@ OfxStatus getFramesNeeded(OfxImageEffectHandle effect, OfxPropertySetHandle in,
     gProp->propGetDouble(in, kOfxPropTime, 0, &t);
     const tsfx::Settings s = readSettings(effect, t);
     double lo = t, hi = t;
-    const int n = tsfx::isIdentity(s) ? 0 : tsfx::echoFramesNeeded(s);
-    for (int k = 0; k < n; ++k) {
-        const double e = echoTime(effect, t, s.timingOffset, k);
-        lo = std::fmin(lo, e);
-        hi = std::fmax(hi, e);
+    if (tsfx::needsGhostFrame(s)) {
+        const double g = ghostTime(effect, t, s.timingOffset);
+        lo = std::fmin(lo, g);
+        hi = std::fmax(hi, g);
     }
     double range[2] = {lo, hi};
     gProp->propSetDoubleN(out, "OfxImageClipPropFrameRange_Source", 2, range);
@@ -398,27 +247,6 @@ OfxStatus isIdentityAction(OfxImageEffectHandle effect, OfxPropertySetHandle in,
         return kOfxStatOK;
     }
     return kOfxStatReplyDefault;
-}
-
-OfxStatus instanceChanged(OfxImageEffectHandle effect, OfxPropertySetHandle in) {
-    char* type = nullptr;
-    char* name = nullptr;
-    char* reason = nullptr;
-    gProp->propGetString(in, kOfxPropType, 0, &type);
-    gProp->propGetString(in, kOfxPropName, 0, &name);
-    gProp->propGetString(in, kOfxPropChangeReason, 0, &reason);
-    if (!type || !name || !reason) return kOfxStatReplyDefault;
-    if (std::strcmp(type, kOfxTypeParameter) != 0 ||
-        std::strcmp(name, P::preset) != 0 ||
-        std::strcmp(reason, kOfxChangeUserEdited) != 0)
-        return kOfxStatReplyDefault;
-
-    int choice = 0;
-    if (OfxParamHandle h = param(paramSetOf(effect), P::preset))
-        gParam->paramGetValue(h, &choice);
-    if (choice == 1) applyPreset(effect, tsfx::presetSubtle());
-    else if (choice == 2) applyPreset(effect, tsfx::presetMusicVideo());
-    return kOfxStatOK;
 }
 
 // RAII wrapper so every fetched image is released on every code path.
@@ -480,18 +308,15 @@ OfxStatus renderAction(OfxImageEffectHandle effect, OfxPropertySetHandle in) {
 
     const tsfx::Settings s = readSettings(effect, t);
 
-    // Fetch the time-shifted frames. If the host cannot deliver one (e.g.
-    // outside the media), we fall back to the current frame instead of
+    // Fetch the time-shifted ghost frame. If the host cannot deliver it
+    // (e.g. outside the media), the current frame is used instead of
     // failing - this keeps playback stable at clip boundaries.
-    FetchedImage echoImg[tsfx::kMaxTrailFrames];
-    inputs.numEchoes = s.enabled ? tsfx::echoFramesNeeded(s) : 0;
-    for (int k = 0; k < inputs.numEchoes; ++k) {
-        const double et = echoTime(effect, t, s.timingOffset, k);
-        if (gEffect->clipGetImage(srcClip, et, nullptr, &echoImg[k].h) == kOfxStatOK &&
-            toView(echoImg[k].h, inputs.echoes[k])) {
-            continue;
-        }
-        inputs.echoes[k] = inputs.current;
+    FetchedImage ghostImg;
+    if (tsfx::needsGhostFrame(s)) {
+        const double gt = ghostTime(effect, t, s.timingOffset);
+        if (gEffect->clipGetImage(srcClip, gt, nullptr, &ghostImg.h) != kOfxStatOK ||
+            !toView(ghostImg.h, inputs.ghost))
+            inputs.ghost = tsfx::ImageView{};
     }
 
     // Pixel scale: keeps distances identical at HD, UHD and proxy resolution.
@@ -501,8 +326,7 @@ OfxStatus renderAction(OfxImageEffectHandle effect, OfxPropertySetHandle in) {
         rod.x2 > rod.x1)
         pixelScale = (rod.x2 - rod.x1) / 1920.0 * scale[0];
 
-    if (!tsfx::render(s, inputs, dst, win[0], win[1], win[2], win[3], t,
-                      pixelScale))
+    if (!tsfx::render(s, inputs, dst, win[0], win[1], win[2], win[3], pixelScale))
         return kOfxStatFailed;
     return kOfxStatOK;
 }
@@ -524,8 +348,6 @@ OfxStatus pluginMain(const char* action, const void* handle,
             return isIdentityAction(effect, in, out);
         if (std::strcmp(action, kOfxImageEffectActionGetFramesNeeded) == 0)
             return getFramesNeeded(effect, in, out);
-        if (std::strcmp(action, kOfxActionInstanceChanged) == 0)
-            return instanceChanged(effect, in);
     } catch (...) {
         // Exceptions must never cross the C boundary into the host.
         return kOfxStatFailed;

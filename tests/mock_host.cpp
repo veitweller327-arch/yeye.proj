@@ -363,9 +363,9 @@ int main(int argc, char** argv) {
     CHECK(act(kOfxImageEffectActionDescribeInContext, &ctx, &ctxIn) == kOfxStatOK);
     CHECK(ctx.clips.count(kOfxImageEffectSimpleSourceClipName) == 1);
     CHECK(ctx.clips.count(kOfxImageEffectOutputClipName) == 1);
-    const char* required[] = {"enable", "masterIntensity", "timingOffset", "hDisplacement", "rgbSplit",
-                              "ghostAmount", "jitterAmount", "jitterSpeed", "streakAmount", "streakEnable",
-                              "blend", "seed", "quality", "preset"};
+    CHECK(ctx.params.order.size() == 5);  // only the ghost controls, nothing else
+    const char* required[] = {"ghostAmount", "ghostDistance", "ghostDirection", "ghostStretch",
+                              "timingOffset"};
     for (const char* r : required) {
         const bool has = P(ctx, r) != nullptr;
         if (!has) std::printf("  missing param: %s\n", r);
@@ -389,27 +389,26 @@ int main(int argc, char** argv) {
     std::printf("  t=1  offset=2 -> [%g, %g] (clamped to clip start 0)\n", lo, hi);
     CHECK(lo == 0 && hi == 1);
     P(*inst, "timingOffset")->i = -3;
-    P(*inst, "ghostAmount")->d = 0.5;
-    P(*inst, "trailLength")->i = 2;
     CHECK(framesNeeded(*inst, 98, lo, hi) == kOfxStatOK);
-    std::printf("  t=98 offset=-3 trail=2 -> [%g, %g] (clamped to clip end 99)\n", lo, hi);
+    std::printf("  t=98 offset=-3 -> [%g, %g] (clamped to clip end 99)\n", lo, hi);
     CHECK(lo == 98 && hi == 99);
+    P(*inst, "timingOffset")->i = 0;
+    CHECK(framesNeeded(*inst, 50, lo, hi) == kOfxStatOK);
+    CHECK(lo == 50 && hi == 50);  // offset 0: no extra frame needed
     P(*inst, "timingOffset")->i = 2;
-    P(*inst, "ghostAmount")->d = 0.25;
-    P(*inst, "trailLength")->i = 1;
 
     std::puts("[5] isIdentity");
     {
         PropertySet in, out;
         in.at(kOfxPropTime, 0).d = 10;
         CHECK(act(kOfxImageEffectActionIsIdentity, inst.get(), &in, &out) == kOfxStatReplyDefault);
-        P(*inst, "enable")->i = 0;
+        P(*inst, "ghostAmount")->d = 0;
         CHECK(act(kOfxImageEffectActionIsIdentity, inst.get(), &in, &out) == kOfxStatOK);
         CHECK(out.get(kOfxPropName, 0) && out.get(kOfxPropName, 0)->s == kOfxImageEffectSimpleSourceClipName);
-        P(*inst, "enable")->i = 1;
+        P(*inst, "ghostAmount")->d = 0.4;
     }
 
-    std::puts("[6] render (default 'subtle' look)");
+    std::puts("[6] render (default values)");
     OfxStatus st;
     gGetValueCalls = 0;
     auto a = renderCapture(*inst, 50, st);
@@ -429,34 +428,23 @@ int main(int argc, char** argv) {
     CHECK(gOutOfRangeRequests == 0);
     CHECK(gOutstandingImages == 0);
 
-    std::puts("[8] preset 'Music Video Extreme' via instanceChanged");
-    {
-        P(*inst, "preset")->i = 2;
-        PropertySet in;
-        in.at(kOfxPropType, 0).s = kOfxTypeParameter;
-        in.at(kOfxPropName, 0).s = "preset";
-        in.at(kOfxPropChangeReason, 0).s = kOfxChangePluginEdited;  // e.g. project load
-        act(kOfxActionInstanceChanged, inst.get(), &in);
-        CHECK(P(*inst, "timingOffset")->i == 2);  // NOT applied on non-user changes
-        in.at(kOfxPropChangeReason, 0).s = kOfxChangeUserEdited;
-        CHECK(act(kOfxActionInstanceChanged, inst.get(), &in) == kOfxStatOK);
-        CHECK(P(*inst, "timingOffset")->i == 4);
-        CHECK(P(*inst, "streakEnable")->i == 1);
-        CHECK(P(*inst, "quality")->i == 2);
-        CHECK(std::fabs(P(*inst, "hDisplacement")->d - 140.0) < 1e-9);
-    }
+    std::puts("[8] strong ghost in UHD (amount 0.8, distance 200, up-left, distortion 0.6)");
+    P(*inst, "ghostAmount")->d = 0.8;
+    P(*inst, "ghostDistance")->d = 200;
+    P(*inst, "ghostDirection")->d = 135;
+    P(*inst, "ghostStretch")->d = 0.6;
     gW = 3840; gH = 2160;
     auto t0 = std::chrono::steady_clock::now();
     auto d = renderCapture(*inst, 50, st);
     double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-    std::printf("  UHD render with extreme preset: %.0f ms, fetched %zu source frames\n", ms, gFetchedTimes.size());
+    std::printf("  UHD render: %.0f ms (incl. mock frame generation), fetched %zu source frames\n", ms, gFetchedTimes.size());
     CHECK(st == kOfxStatOK && allFinite(d));
-    CHECK(gFetchedTimes.size() == 4);  // current + 3 echoes (trail 3, quality Best)
+    CHECK(gFetchedTimes.size() == 2);  // current + ghost frame
     CHECK(gOutstandingImages == 0);
 
-    std::puts("[9] disabled effect renders an exact copy");
+    std::puts("[9] ghost amount 0 renders an exact copy");
     gW = 320; gH = 180;
-    P(*inst, "enable")->i = 0;
+    P(*inst, "ghostAmount")->d = 0;
     auto e = renderCapture(*inst, 20, st);
     {
         // reference: what the host's source frame 20 looks like
