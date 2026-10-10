@@ -1,0 +1,39 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (Visual Studio 2022, x64)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test (unit tests + mock OFX host loading the real plugin)
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Build installer (NSIS)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { choco install nsis -y --no-progress; $env:PATH += ";${env:ProgramFiles(x86)}\NSIS" }
+          makensis -DVERSION=1.0.0 "-DBUNDLE_DIR=$PWD\build\TimingShiftFX.ofx.bundle" "-DOUT_FILE=$PWD\TimingShiftFX-1.0.0-Windows-Setup-msvc.exe" installer\TimingShiftFX.nsi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TimingShiftFX-Windows-msvc
+          path: |
+            build/TimingShiftFX.ofx.bundle
+            TimingShiftFX-1.0.0-Windows-Setup-msvc.exe
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build + test
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+          ctest --test-dir build --output-on-failure
