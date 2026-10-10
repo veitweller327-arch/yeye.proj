@@ -1,7 +1,12 @@
 # 5. DRFX-Version (Fusion-Effekt, Doppelklick-Installation)
 
-`dist/TimingShiftGhost-1.1.0.drfx` enthält denselben Ghost-Effekt mit
-denselben fünf Reglern – aber als **Fusion-Effekt** statt als OFX-Plugin.
+`dist/TimingShiftGhost-1.1.0.drfx` enthält den Ghost-Effekt aus **Version 1.1**
+(fünf Regler: Ghost Amount, Distance, Direction, Distortion, Timing Offset) als
+**Fusion-Effekt**.
+
+> **Hinweis:** Das OFX-Plugin ist seit Version 1.2 auf den Look aus dem
+> Referenzvideo umgebaut (Schlieren in linearem Licht, Shake, Wrap-Around …).
+> Die DRFX-Version hat diese Regler **noch nicht**.
 
 ## Warum zwei Versionen?
 

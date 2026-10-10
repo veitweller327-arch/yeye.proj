@@ -1,10 +1,14 @@
 // TimingShiftCore.h
 // -----------------------------------------------------------------------------
-// Host-independent image processing for the "Timing Shift FX" ghost effect.
+// Host-independent image processing for "Timing Shift FX".
+//
+// The look recreates an out-of-sync film camera (ARRI Timing Shift Box style):
+// the image is converted to linear light, smeared along the film transport
+// direction (bright areas leave long streaks), optionally mixed with a
+// time-shifted ghost copy, and converted back.
 //
 // This file knows NOTHING about OpenFX or DaVinci Resolve. It only works on
-// plain RGBA float buffers. That separation lets us unit-test the look on any
-// computer (see tests/core_tests.cpp) and keeps the OFX glue code small.
+// plain RGBA float buffers, so it can be unit-tested on any computer.
 // -----------------------------------------------------------------------------
 #pragma once
 
@@ -41,21 +45,56 @@ struct MutableImageView {
     }
 };
 
-// All user parameters, already evaluated at the current time.
-// Distances are in "pixels at 1920 px width"; the core rescales them so the
-// look is identical for HD, UHD and Resolve's proxy / render-scale previews.
-struct Settings {
-    double ghostAmount = 0.4;      // 0..1  opacity of the ghost image
-    double ghostDistance = 40.0;   // px    how far the ghost is moved
-    double ghostDirection = 90.0;  // deg   0 = right, 90 = up, 180 = left, -90 = down
-    double ghostStretch = 0.3;     // 0..1  smear of the ghost along the direction
-    int timingOffset = 2;          // frames; >0 = ghost shows the past, <0 = the future
+// Transfer function of the incoming image. The streak is computed in linear
+// light so highlights smear like real light on film.
+enum class Gamma : int {
+    Linear = 0,          // already linear, no conversion
+    Rec709 = 1,          // Rec.709 / Gamma 2.4 (Resolve's default timeline)
+    SonySLog3 = 2,
+    ArriLogC3 = 3,       // LogC3, EI 800
+    ArriLogC4 = 4,
+    DaVinciIntermediate = 5,
 };
+constexpr int kNumGammas = 6;
+
+// What happens when the smear reaches the frame edge.
+enum class Edges : int {
+    WrapAround = 0,  // continues from the opposite edge (like the film strip)
+    Replicate = 1,   // repeats the edge pixels
+};
+
+// All user parameters, already evaluated at the current time.
+// Lengths are in "pixels at 1920 px width"; the core rescales them so the look
+// is identical for HD, UHD and Resolve's proxy / render-scale previews.
+struct Settings {
+    // --- streak (the Timing Shift look) ---
+    Gamma inputGamma = Gamma::Rec709;
+    double blurStrength = 1.0;    // 0..3   1.0 = streak of 150 px at 1080p
+    double blurAngle = 90.0;      // deg    0 = right, 90 = up, -90 = down
+    bool symmetricBlur = false;   // smear in both directions
+    Edges edges = Edges::WrapAround;
+    double cleanupLow = 0.0;      // 0..1  dark areas below this stay clean ...
+    double cleanupHigh = 0.0;     // 0..1  ... fading to full effect at this level
+    // --- shake: randomly varying streak length (the box's jitter) ---
+    bool shake = false;
+    double shakeSmoothness = 5.0; // frames between random values
+    double strengthMin = 0.5;
+    double strengthMax = 1.0;
+    int seed = 0;
+    // --- ghost: time-shifted, displaced copy ---
+    double ghostAmount = 0.0;     // 0..1
+    double ghostDistance = 40.0;  // px
+    double ghostDirection = 90.0; // deg
+    int timingOffset = 2;         // frames; >0 = past, <0 = future
+};
+
+// Streak length in px (at 1920 px width) for blurStrength = 1.
+constexpr double kStreakLengthAtStrength1 = 150.0;
 
 // The frames the effect reads.
 //  current - the source frame at the render time (required)
-//  ghost   - source frame at time - timingOffset. If invalid (e.g. the host
-//            could not deliver it) the current frame is used instead.
+//  ghost   - source frame at time - timingOffset. If invalid, the current
+//            frame is used instead.
 struct FrameInputs {
     ImageView current;
     ImageView ghost;
@@ -64,15 +103,26 @@ struct FrameInputs {
 // True if the settings need a second (time-shifted) frame.
 bool needsGhostFrame(const Settings& s);
 
+// Blur strength actually used at this time (applies Shake).
+double effectiveStrength(const Settings& s, double time);
+
 // Render the effect into dst for the pixels inside the render window.
+//  time        - host time in frames (used by Shake)
 //  pixelScale  - (image width in canonical px / 1920) * renderScale.x
 //  numThreads  - <= 0 means "use all hardware threads"
 // Returns false if the inputs are unusable (dst is left untouched).
 bool render(const Settings& s, const FrameInputs& in,
             const MutableImageView& dst, int winX1, int winY1, int winX2,
-            int winY2, double pixelScale, int numThreads = 0);
+            int winY2, double time, double pixelScale, int numThreads = 0);
 
-// True if the settings produce an unchanged image (lets the host skip us).
-bool isIdentity(const Settings& s);
+// True if the settings produce an unchanged image at this time.
+bool isIdentity(const Settings& s, double time);
+
+// Transfer functions (exposed for tests).
+float toLinear(float v, Gamma g);
+float fromLinear(float v, Gamma g);
+
+// Deterministic hash noise in [0,1) (exposed for tests).
+double hashNoise(unsigned seed, long long a);
 
 }  // namespace tsfx

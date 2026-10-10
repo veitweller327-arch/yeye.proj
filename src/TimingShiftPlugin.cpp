@@ -14,6 +14,7 @@
 // -----------------------------------------------------------------------------
 #include <cmath>
 #include <cstring>
+#include <initializer_list>
 
 #include "ofxCore.h"
 #include "ofxImageEffect.h"
@@ -26,7 +27,7 @@
 #define TSFX_LABEL "Timing Shift FX"
 #define TSFX_GROUP "Timing Shift FX"
 #define TSFX_VERSION_MAJOR 1
-#define TSFX_VERSION_MINOR 1
+#define TSFX_VERSION_MINOR 2
 
 namespace {
 
@@ -37,10 +38,22 @@ const OfxParameterSuiteV1* gParam = nullptr;
 
 // ---- parameter names (internal ids, never change them after release!) ----
 namespace P {
+const char* const inputGamma = "inputGamma";
+const char* const blurStrength = "blurStrength";
+const char* const blurAngle = "blurAngle";
+const char* const symmetricBlur = "symmetricBlur";
+const char* const blurEdges = "blurEdges";
+const char* const cleanupLow = "cleanupLow";
+const char* const cleanupHigh = "cleanupHigh";
+const char* const shake = "shake";
+const char* const shakeSmoothness = "shakeSmoothness";
+const char* const strengthMin = "blurStrengthMin";
+const char* const strengthMax = "blurStrengthMax";
+const char* const reseed = "reseed";
+const char* const seed = "shakeSeed";  // hidden, changed by the Reseed button
 const char* const ghostAmount = "ghostAmount";
 const char* const ghostDistance = "ghostDistance";
 const char* const ghostDirection = "ghostDirection";
-const char* const ghostStretch = "ghostStretch";
 const char* const timingOffset = "timingOffset";
 }  // namespace P
 
@@ -89,6 +102,29 @@ void defineInt(OfxParamSetHandle ps, const char* name, const char* label,
     gProp->propSetInt(p, kOfxParamPropDisplayMax, 0, mx);
 }
 
+void defineBool(OfxParamSetHandle ps, const char* name, const char* label,
+                const char* hint, const char* parent, bool def) {
+    OfxPropertySetHandle p =
+        defineParam(ps, kOfxParamTypeBoolean, name, label, hint, parent);
+    gProp->propSetInt(p, kOfxParamPropDefault, 0, def ? 1 : 0);
+}
+
+void defineChoice(OfxParamSetHandle ps, const char* name, const char* label,
+                  const char* hint, const char* parent,
+                  std::initializer_list<const char*> options, int def) {
+    OfxPropertySetHandle p =
+        defineParam(ps, kOfxParamTypeChoice, name, label, hint, parent);
+    int i = 0;
+    for (const char* o : options) gProp->propSetString(p, kOfxParamPropChoiceOption, i++, o);
+    gProp->propSetInt(p, kOfxParamPropDefault, 0, def);
+}
+
+void defineGroup(OfxParamSetHandle ps, const char* name, const char* label, bool open) {
+    OfxPropertySetHandle p =
+        defineParam(ps, kOfxParamTypeGroup, name, label, nullptr, nullptr);
+    gProp->propSetInt(p, kOfxParamPropGroupOpen, 0, open ? 1 : 0);
+}
+
 OfxParamHandle param(OfxParamSetHandle ps, const char* name) {
     OfxParamHandle h = nullptr;
     gParam->paramGetHandle(ps, name, &h, nullptr);
@@ -112,10 +148,22 @@ tsfx::Settings readSettings(OfxImageEffectHandle effect, double t) {
     OfxParamSetHandle ps = paramSetOf(effect);
     const tsfx::Settings d;  // defaults as fallback
     tsfx::Settings s;
+    const int gamma = getInt(ps, P::inputGamma, t, static_cast<int>(d.inputGamma));
+    s.inputGamma = static_cast<tsfx::Gamma>(gamma >= 0 && gamma < tsfx::kNumGammas ? gamma : 1);
+    s.blurStrength = getDouble(ps, P::blurStrength, t, d.blurStrength);
+    s.blurAngle = getDouble(ps, P::blurAngle, t, d.blurAngle);
+    s.symmetricBlur = getInt(ps, P::symmetricBlur, t, d.symmetricBlur) != 0;
+    s.edges = getInt(ps, P::blurEdges, t, 0) == 1 ? tsfx::Edges::Replicate : tsfx::Edges::WrapAround;
+    s.cleanupLow = getDouble(ps, P::cleanupLow, t, d.cleanupLow);
+    s.cleanupHigh = getDouble(ps, P::cleanupHigh, t, d.cleanupHigh);
+    s.shake = getInt(ps, P::shake, t, d.shake) != 0;
+    s.shakeSmoothness = getDouble(ps, P::shakeSmoothness, t, d.shakeSmoothness);
+    s.strengthMin = getDouble(ps, P::strengthMin, t, d.strengthMin);
+    s.strengthMax = getDouble(ps, P::strengthMax, t, d.strengthMax);
+    s.seed = getInt(ps, P::seed, t, d.seed);
     s.ghostAmount = getDouble(ps, P::ghostAmount, t, d.ghostAmount);
     s.ghostDistance = getDouble(ps, P::ghostDistance, t, d.ghostDistance);
     s.ghostDirection = getDouble(ps, P::ghostDirection, t, d.ghostDirection);
-    s.ghostStretch = getDouble(ps, P::ghostStretch, t, d.ghostStretch);
     s.timingOffset = getInt(ps, P::timingOffset, t, d.timingOffset);
     return s;
 }
@@ -141,9 +189,9 @@ OfxStatus describe(OfxImageEffectHandle effect) {
     gProp->propSetString(props, kOfxPropLabel, 0, TSFX_LABEL);
     gProp->propSetString(props, kOfxImageEffectPluginPropGrouping, 0, TSFX_GROUP);
     gProp->propSetString(props, kOfxPropPluginDescription, 0,
-        "Analog timing-error ghost: a time-shifted, displaced and stretched "
-        "copy of the image. Inspired by analog timing artifacts; not "
-        "affiliated with ARRI.");
+        "Out-of-sync film camera look: linear-light streaks along the film "
+        "transport, optional shake and time-shifted ghost. Inspired by the "
+        "ARRI Timing Shift Box; not affiliated with ARRI.");
     gProp->propSetString(props, kOfxImageEffectPropSupportedContexts, 0,
                          kOfxImageEffectContextFilter);
     gProp->propSetString(props, kOfxImageEffectPropSupportedPixelDepths, 0,
@@ -176,22 +224,75 @@ OfxStatus describeInContext(OfxImageEffectHandle effect) {
     OfxParamSetHandle ps = paramSetOf(effect);
     const tsfx::Settings d;
 
+    // --- Streak: the look from the out-of-sync film camera -------------
+    defineChoice(ps, P::inputGamma, "Input Gamma",
+                 "Gamma of the incoming image. The streak is computed in linear "
+                 "light so highlights smear like real light. On a normal Rec.709 "
+                 "timeline keep 'Rec.709 / Gamma 2.4'; for ungraded log footage "
+                 "choose the camera's log curve.",
+                 nullptr,
+                 {"Linear", "Rec.709 / Gamma 2.4", "Sony S-Log3", "ARRI LogC3 (EI 800)",
+                  "ARRI LogC4", "DaVinci Intermediate"},
+                 static_cast<int>(d.inputGamma));
+    defineDouble(ps, P::blurStrength, "Blur Strength",
+                 "Length of the streak. 1.0 = 150 px at 1080p. Ignored while Shake is on.",
+                 nullptr, d.blurStrength, 0, 10, 0, 3, 0.01);
+    defineDouble(ps, P::blurAngle, "Blur Angle",
+                 "Direction of the streak in degrees: 90 = up (film transport), "
+                 "-90 = down, 0 = right, 180 = left.",
+                 nullptr, d.blurAngle, -180, 180, -180, 180, 1);
+    defineBool(ps, P::symmetricBlur, "Symmetric Blur",
+               "Smear in both directions instead of one.", nullptr, d.symmetricBlur);
+    defineChoice(ps, P::blurEdges, "Blur Edges",
+                 "What the streak does at the frame edge. Wrap-Around continues from "
+                 "the opposite edge (most realistic, like the film strip); Replicate "
+                 "repeats the edge pixels.",
+                 nullptr, {"Wrap-Around", "Replicate"}, 0);
+    defineDouble(ps, P::cleanupLow, "Cleanup Low",
+                 "Dark areas below this brightness keep the clean, unstreaked image.",
+                 nullptr, d.cleanupLow, 0, 1, 0, 1, 0.01);
+    defineDouble(ps, P::cleanupHigh, "Cleanup High",
+                 "Above this brightness the full effect is visible (soft fade from Cleanup Low).",
+                 nullptr, d.cleanupHigh, 0, 1, 0, 1, 0.01);
+
+    // --- Shake: random streak length, like the box's jitter --------------
+    defineGroup(ps, "grpShake", "Shake", true);
+    defineBool(ps, P::shake, "Enable Shake",
+               "Varies the streak length randomly between Min and Max over time.",
+               "grpShake", d.shake);
+    defineDouble(ps, P::shakeSmoothness, "Shake Smoothness",
+                 "Frames between new random values. Higher = calmer, slower changes.",
+                 "grpShake", d.shakeSmoothness, 1, 100, 1, 25, 0.1);
+    defineDouble(ps, P::strengthMin, "Blur Strength Min", "Shortest streak while shaking.",
+                 "grpShake", d.strengthMin, 0, 10, 0, 3, 0.01);
+    defineDouble(ps, P::strengthMax, "Blur Strength Max", "Longest streak while shaking.",
+                 "grpShake", d.strengthMax, 0, 10, 0, 3, 0.01);
+    {
+        OfxPropertySetHandle p = defineParam(ps, kOfxParamTypePushButton, P::reseed, "Reseed",
+                                             "New random shake pattern.", "grpShake");
+        (void)p;
+        OfxPropertySetHandle h = defineParam(ps, kOfxParamTypeInteger, P::seed, "Shake Seed",
+                                             nullptr, "grpShake");
+        gProp->propSetInt(h, kOfxParamPropDefault, 0, d.seed);
+        gProp->propSetInt(h, kOfxParamPropSecret, 0, 1);
+        gProp->propSetInt(h, kOfxParamPropAnimates, 0, 0);
+    }
+
+    // --- Ghost: time-shifted, displaced copy -------------------------------
+    defineGroup(ps, "grpGhost", "Ghost (Time Offset)", false);
     defineDouble(ps, P::ghostAmount, "Ghost Amount",
-                 "Strength (opacity) of the ghost image. 0 = off, 1 = only ghost.",
-                 nullptr, d.ghostAmount, 0, 1, 0, 1, 0.01);
+                 "Strength of an extra time-shifted copy. 0 = off.",
+                 "grpGhost", d.ghostAmount, 0, 1, 0, 1, 0.01);
     defineDouble(ps, P::ghostDistance, "Ghost Distance",
-                 "How far the ghost is moved, in pixels (at 1080p).", nullptr,
+                 "How far the ghost is moved, in pixels (at 1080p).", "grpGhost",
                  d.ghostDistance, 0, 4000, 0, 500, 1);
     defineDouble(ps, P::ghostDirection, "Ghost Direction",
                  "Direction in degrees: 0 = right, 90 = up, 180 = left, -90 = down.",
-                 nullptr, d.ghostDirection, -180, 180, -180, 180, 1);
-    defineDouble(ps, P::ghostStretch, "Ghost Distortion",
-                 "Stretches / smears the ghost along its direction. 0 = sharp copy.",
-                 nullptr, d.ghostStretch, 0, 1, 0, 1, 0.01);
+                 "grpGhost", d.ghostDirection, -180, 180, -180, 180, 1);
     defineInt(ps, P::timingOffset, "Timing Offset (frames)",
               "Which frame the ghost shows: +2 = 2 frames ago, -2 = 2 frames ahead, "
               "0 = same frame.",
-              nullptr, d.timingOffset, -12, 12);
+              "grpGhost", d.timingOffset, -12, 12);
     return kOfxStatOK;
 }
 
@@ -242,11 +343,28 @@ OfxStatus isIdentityAction(OfxImageEffectHandle effect, OfxPropertySetHandle in,
                            OfxPropertySetHandle out) {
     double t = 0;
     gProp->propGetDouble(in, kOfxPropTime, 0, &t);
-    if (tsfx::isIdentity(readSettings(effect, t))) {
+    if (tsfx::isIdentity(readSettings(effect, t), t)) {
         gProp->propSetString(out, kOfxPropName, 0, kOfxImageEffectSimpleSourceClipName);
         return kOfxStatOK;
     }
     return kOfxStatReplyDefault;
+}
+
+// The Reseed button picks a new random shake pattern.
+OfxStatus instanceChanged(OfxImageEffectHandle effect, OfxPropertySetHandle in) {
+    char* type = nullptr;
+    char* name = nullptr;
+    gProp->propGetString(in, kOfxPropType, 0, &type);
+    gProp->propGetString(in, kOfxPropName, 0, &name);
+    if (!type || !name || std::strcmp(type, kOfxTypeParameter) != 0 ||
+        std::strcmp(name, P::reseed) != 0)
+        return kOfxStatReplyDefault;
+    OfxParamHandle h = param(paramSetOf(effect), P::seed);
+    if (!h) return kOfxStatFailed;
+    int seed = 0;
+    gParam->paramGetValue(h, &seed);
+    gParam->paramSetValue(h, (seed + 1) % 100000);
+    return kOfxStatOK;
 }
 
 // RAII wrapper so every fetched image is released on every code path.
@@ -326,7 +444,7 @@ OfxStatus renderAction(OfxImageEffectHandle effect, OfxPropertySetHandle in) {
         rod.x2 > rod.x1)
         pixelScale = (rod.x2 - rod.x1) / 1920.0 * scale[0];
 
-    if (!tsfx::render(s, inputs, dst, win[0], win[1], win[2], win[3], pixelScale))
+    if (!tsfx::render(s, inputs, dst, win[0], win[1], win[2], win[3], t, pixelScale))
         return kOfxStatFailed;
     return kOfxStatOK;
 }
@@ -348,6 +466,8 @@ OfxStatus pluginMain(const char* action, const void* handle,
             return isIdentityAction(effect, in, out);
         if (std::strcmp(action, kOfxImageEffectActionGetFramesNeeded) == 0)
             return getFramesNeeded(effect, in, out);
+        if (std::strcmp(action, kOfxActionInstanceChanged) == 0)
+            return instanceChanged(effect, in);
     } catch (...) {
         // Exceptions must never cross the C boundary into the host.
         return kOfxStatFailed;

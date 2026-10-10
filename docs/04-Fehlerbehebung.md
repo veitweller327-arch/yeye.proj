@@ -45,13 +45,17 @@ Der Reihe nach prüfen:
 
 ## Ruckelige Wiedergabe
 
-* **Ghost Distortion** reduzieren (größter Einfluss auf die Rechenzeit).
+* **Blur Angle** genau auf 90 / −90 / 0 / 180 stellen: Senkrechte und
+  waagerechte Schlieren haben einen besonders schnellen Rechenweg (etwa
+  doppelt so schnell wie schräge Winkel).
+* **Ghost Amount** auf 0 lassen, wenn du keinen Ghost brauchst (spart den
+  zweiten Frame).
 * Timeline-Proxy-Auflösung reduzieren, Render Cache nutzen, Optimized Media
   für H.264/H.265 (siehe [03-Installieren-und-Benutzen.md](03-Installieren-und-Benutzen.md)).
 
 ## GPU-Probleme
 
-Version 1.1 rechnet **auf der CPU** (alle Kerne). Resolve schiebt dafür das
+Version 1.2 rechnet **auf der CPU** (alle Kerne). Resolve schiebt dafür das
 Bild von der GPU in den Arbeitsspeicher und zurück. Folgen:
 
 * Der Effekt funktioniert unabhängig von Grafikkarte/Treiber
@@ -64,10 +68,17 @@ Bild von der GPU in den Arbeitsspeicher und zurück. Folgen:
 Ein GPU-Pfad (CUDA/OpenCL) ist als Stufe 4 geplant – siehe
 [01-Architektur.md](01-Architektur.md).
 
-## Projekte mit Version 1.0
+## Projekte mit älteren Versionen (1.0 / 1.1)
 
-Version 1.1 hat andere Regler. In Projekten, in denen schon Version 1.0
-benutzt wurde, den Effekt einmal entfernen und neu auf den Clip ziehen.
+Version 1.2 hat andere Regler. In Projekten, in denen schon eine ältere
+Version benutzt wurde, den Effekt einmal entfernen und neu auf den Clip ziehen.
+
+## Schlieren sehen falsch aus (zu hell, zu matschig, Farbstich)
+
+**Input Gamma** muss zum Bild passen, das beim Effekt ankommt:
+* Normale Rec.709-Timeline / bereits gegradetes Material → **Rec.709 / Gamma 2.4**
+* Ungegradetes Sony-Log → **Sony S-Log3**, ARRI → **LogC3** oder **LogC4**
+* Color-managed Projekt (DaVinci Wide Gamut) → **DaVinci Intermediate**
 
 ## Der Zeitversatz ist am Clipanfang/-ende "eingefroren"
 

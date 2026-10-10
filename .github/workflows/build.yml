@@ -20,13 +20,13 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { choco install nsis -y --no-progress; $env:PATH += ";${env:ProgramFiles(x86)}\NSIS" }
-          makensis -DVERSION=1.1.0 "-DBUNDLE_DIR=$PWD\build\TimingShiftFX.ofx.bundle" "-DOUT_FILE=$PWD\TimingShiftFX-1.1.0-Windows-Setup-msvc.exe" installer\TimingShiftFX.nsi
+          makensis -DVERSION=1.2.0 "-DBUNDLE_DIR=$PWD\build\TimingShiftFX.ofx.bundle" "-DOUT_FILE=$PWD\TimingShiftFX-1.2.0-Windows-Setup-msvc.exe" installer\TimingShiftFX.nsi
       - uses: actions/upload-artifact@v4
         with:
           name: TimingShiftFX-Windows-msvc
           path: |
             build/TimingShiftFX.ofx.bundle
-            TimingShiftFX-1.1.0-Windows-Setup-msvc.exe
+            TimingShiftFX-1.2.0-Windows-Setup-msvc.exe
 
   linux:
     runs-on: ubuntu-latest

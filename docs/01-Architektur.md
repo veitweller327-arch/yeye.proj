@@ -10,6 +10,11 @@ OFX-Plugin umsetzen. Es braucht keine zweite Architektur (kein Fusion, kein
 externes Programm). Nur **GPU-Beschleunigung** ist bewusst auf eine spätere
 Stufe verschoben (siehe unten).
 
+> **Version 1.2:** Umgebaut nach dem Referenzvideo: Schlieren in linearem
+> Licht (Input Gamma, Blur Strength/Angle, Symmetric, Wrap-Around/Replicate,
+> Cleanup) plus Shake (Min/Max/Smoothness/Reseed); der Ghost bleibt als
+> optionale Gruppe. Abgleich: [06-Video-Abgleich.md](06-Video-Abgleich.md).
+>
 > **Version 1.1:** Auf Wunsch auf den reinen Ghost-Effekt reduziert. Jitter,
 > Random Seed, Bänder, RGB-Split, Streaks, Presets und Quality-Auswahl wurden
 > entfernt. Es gibt nur noch fünf Regler: Ghost Amount, Ghost Distance,
@@ -34,8 +39,9 @@ Stufe verschoben (siehe unten).
 | Funktion | Native OFX? | Wie umgesetzt | Einschränkungen |
 |----------|-------------|---------------|-----------------|
 | Zeitversatz (Timing Offset) | **Ja** | `kOfxImageEffectPropTemporalClipAccess` + Aktion `getFramesNeeded` + `clipGetImage(t − Offset)` | Resolve muss einen zusätzlichen Frame dekodieren → langsamer bei H.264/H.265. An Clipgrenzen wird der erste/letzte Frame verwendet. |
-| Verschiebung (Distance + Direction) | **Ja** | Geisterbild wird mit Sub-Pixel-Genauigkeit (bilinear) in beliebigem Winkel verschoben | – |
-| Verzerrung (Distortion) | **Ja** | Bis zu 32 Abtastungen entlang der Richtung werden gemittelt ("Verschmieren") | Bei extrem großem Abstand **und** Distortion nahe 1 sind die Abtastungen weit auseinander → das Geisterbild kann leicht "gestuft" wirken |
+| Ghost-Verschiebung (Distance + Direction) | **Ja** | Geisterbild wird mit Sub-Pixel-Genauigkeit (bilinear) in beliebigem Winkel verschoben | – |
+| Schlieren (Blur Strength/Angle, Symmetric, Edges) | **Ja** | Box-Blur in linearem Licht: senkrecht/waagerecht exakt mit laufenden Summen, schräge Winkel über 2^n gleichmäßige Abtastungen | Schräge Winkel sind etwa doppelt so teuer |
+| Input Gamma / Cleanup / Shake | **Ja** | Nachschlagetabellen für die Gamma-Kurven; Shake = deterministisches, geglättetes Zufallsrauschen | – |
 | Stärke (Amount) | **Ja** | Überblendung Geisterbild über das Original | – |
 | GPU | **Ja, aber später** | Resolve unterstützt CUDA/OpenCL/Metal-OFX-Rendering | Version 1.1 rechnet auf der CPU (Multithreading) |
 
@@ -46,7 +52,7 @@ Eine `.drfx`-Datei (das ist das "Doppelklick-Paket" von DaVinci Resolve) kann
 Ein Fusion-Makro könnte einen Teil des Looks nachbauen (TimeSpeed-Node für den
 Versatz), wäre aber deutlich langsamer, schwerer zu bedienen und hätte keinen
 echten deterministischen Zufall pro Zeile. Für das native Plugin übernimmt
-**`TimingShiftFX-1.1.0-Windows-Setup.exe`** die Rolle des Doppelklick-Pakets.
+**`TimingShiftFX-1.2.0-Windows-Setup.exe`** die Rolle des Doppelklick-Pakets.
 
 ## Bekannte Grenzen (ehrlich)
 
@@ -69,10 +75,10 @@ echten deterministischen Zufall pro Zeile. Für das native Plugin übernimmt
 * **Bewegungsartefakte:** Bei schneller Bewegung weicht das Geisterbild
   stärker vom Original ab (das ist der gewollte Look). Bei Timing Offset 0
   gibt es keinen Zeitversatz, nur die räumliche Verschiebung.
-* **Performance (CPU, 4 Kerne, Messung aus `core_tests`, Distance 40):**
-  1080p: 12 ms (Distortion 0) / 17 ms (0.3) / 38 ms (1.0);
-  2160p: 50 ms / 109 ms / 233 ms pro Frame – plus das Dekodieren des
-  Zusatzframes durch Resolve. Mehr Kerne = schneller.
+* **Performance (CPU, 4 Kerne, Messung aus `core_tests`, Blur Strength 1):**
+  1080p: 58 ms (senkrecht) / 88 ms (+ Ghost) / 118 ms (Winkel 75°);
+  2160p: 252 / 513 / 588 ms pro Frame – plus Dekodieren durch Resolve.
+  Mehr Kerne = schneller.
 
 ## Stufenplan
 
@@ -80,6 +86,7 @@ echten deterministischen Zufall pro Zeile. Für das native Plugin übernimmt
 |-------|--------|--------|
 | 1 | Minimalversion: Plugin lädt, Regler im Inspector, Timing Offset + Ghosting | ✅ fertig |
 | 2 | Ghost-Effekt mit Stärke, Abstand, Richtung, Verzerrung; Installer | ✅ fertig (Version 1.1) |
+| 2b | Look und Regler nach Referenzvideo (Schlieren, Shake, Wrap-Around, Cleanup) | ✅ fertig (Version 1.2) |
 | 3 | Test in Resolve 20 Studio durch dich, Feinabstimmung der Standardwerte | ⏳ nächster Schritt |
 | 4 | GPU-Pfad (CUDA für NVIDIA, OpenCL als Fallback) über `kOfxImageEffectPropCudaRenderSupported` / `OpenCLRenderSupported`; CPU-Pfad bleibt als Fallback | geplant |
 | 5 | Optional: Code-Signatur des Installers (kein SmartScreen-Hinweis mehr) | optional |

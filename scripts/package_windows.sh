@@ -5,7 +5,7 @@
 # Requirements (Linux): pip install ziglang ; apt install nsis zip
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VER="1.1.0"
+VER="1.2.0"
 BUILD="$ROOT/build-win"
 DIST="$ROOT/dist"
 "$ROOT/scripts/build_windows_cross.sh" "$BUILD"

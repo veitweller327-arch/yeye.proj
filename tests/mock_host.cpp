@@ -363,9 +363,17 @@ int main(int argc, char** argv) {
     CHECK(act(kOfxImageEffectActionDescribeInContext, &ctx, &ctxIn) == kOfxStatOK);
     CHECK(ctx.clips.count(kOfxImageEffectSimpleSourceClipName) == 1);
     CHECK(ctx.clips.count(kOfxImageEffectOutputClipName) == 1);
-    CHECK(ctx.params.order.size() == 5);  // only the ghost controls, nothing else
-    const char* required[] = {"ghostAmount", "ghostDistance", "ghostDirection", "ghostStretch",
+    // Controls from the reference video + ghost group (see docs/06-Video-Abgleich.md)
+    const char* required[] = {"inputGamma", "blurStrength", "blurAngle", "symmetricBlur",
+                              "blurEdges", "cleanupLow", "cleanupHigh", "shake",
+                              "shakeSmoothness", "blurStrengthMin", "blurStrengthMax", "reseed",
+                              "shakeSeed", "ghostAmount", "ghostDistance", "ghostDirection",
                               "timingOffset"};
+    {
+        int secret = 0;
+        getI(H(&P(ctx, "shakeSeed")->props), kOfxParamPropSecret, 0, &secret);
+        CHECK(secret == 1);  // seed is hidden, only the Reseed button is visible
+    }
     for (const char* r : required) {
         const bool has = P(ctx, r) != nullptr;
         if (!has) std::printf("  missing param: %s\n", r);
@@ -382,6 +390,9 @@ int main(int argc, char** argv) {
     auto inst = makeInstance(ctx);
     CHECK(act(kOfxActionCreateInstance, inst.get()) == kOfxStatOK);
     double lo, hi;
+    CHECK(framesNeeded(*inst, 50, lo, hi) == kOfxStatOK);
+    CHECK(lo == 50 && hi == 50);  // ghost is off by default: no extra frame
+    P(*inst, "ghostAmount")->d = 0.4;
     CHECK(framesNeeded(*inst, 50, lo, hi) == kOfxStatOK);
     std::printf("  t=50 offset=2 -> [%g, %g]\n", lo, hi);
     CHECK(lo == 48 && hi == 50);
@@ -403,8 +414,11 @@ int main(int argc, char** argv) {
         in.at(kOfxPropTime, 0).d = 10;
         CHECK(act(kOfxImageEffectActionIsIdentity, inst.get(), &in, &out) == kOfxStatReplyDefault);
         P(*inst, "ghostAmount")->d = 0;
+        P(*inst, "blurStrength")->d = 0;
         CHECK(act(kOfxImageEffectActionIsIdentity, inst.get(), &in, &out) == kOfxStatOK);
         CHECK(out.get(kOfxPropName, 0) && out.get(kOfxPropName, 0)->s == kOfxImageEffectSimpleSourceClipName);
+        P(*inst, "blurStrength")->d = 1.0;
+        CHECK(act(kOfxImageEffectActionIsIdentity, inst.get(), &in, &out) == kOfxStatReplyDefault);
         P(*inst, "ghostAmount")->d = 0.4;
     }
 
@@ -428,11 +442,26 @@ int main(int argc, char** argv) {
     CHECK(gOutOfRangeRequests == 0);
     CHECK(gOutstandingImages == 0);
 
-    std::puts("[8] strong ghost in UHD (amount 0.8, distance 200, up-left, distortion 0.6)");
+    std::puts("[8] Reseed button changes the hidden seed (instanceChanged)");
+    {
+        const int before = P(*inst, "shakeSeed")->i;
+        PropertySet in;
+        in.at(kOfxPropType, 0).s = kOfxTypeParameter;
+        in.at(kOfxPropName, 0).s = "reseed";
+        in.at(kOfxPropChangeReason, 0).s = kOfxChangeUserEdited;
+        CHECK(act(kOfxActionInstanceChanged, inst.get(), &in) == kOfxStatOK);
+        CHECK(P(*inst, "shakeSeed")->i == before + 1);
+        in.at(kOfxPropName, 0).s = "blurAngle";  // other params: ignored
+        CHECK(act(kOfxActionInstanceChanged, inst.get(), &in) == kOfxStatReplyDefault);
+    }
+    std::puts("[8b] UHD: S-Log3, shake, symmetric, angle 75, ghost up-left");
+    P(*inst, "inputGamma")->i = 2;
+    P(*inst, "shake")->i = 1;
+    P(*inst, "symmetricBlur")->i = 1;
+    P(*inst, "blurAngle")->d = 75;
     P(*inst, "ghostAmount")->d = 0.8;
     P(*inst, "ghostDistance")->d = 200;
     P(*inst, "ghostDirection")->d = 135;
-    P(*inst, "ghostStretch")->d = 0.6;
     gW = 3840; gH = 2160;
     auto t0 = std::chrono::steady_clock::now();
     auto d = renderCapture(*inst, 50, st);
@@ -442,9 +471,11 @@ int main(int argc, char** argv) {
     CHECK(gFetchedTimes.size() == 2);  // current + ghost frame
     CHECK(gOutstandingImages == 0);
 
-    std::puts("[9] ghost amount 0 renders an exact copy");
+    std::puts("[9] strength 0 + ghost 0 renders an exact copy");
     gW = 320; gH = 180;
     P(*inst, "ghostAmount")->d = 0;
+    P(*inst, "shake")->i = 0;
+    P(*inst, "blurStrength")->d = 0;
     auto e = renderCapture(*inst, 20, st);
     {
         // reference: what the host's source frame 20 looks like

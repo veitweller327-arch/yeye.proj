@@ -14,7 +14,7 @@ Target amd64-unicode   ; native 64-bit installer (the plugin is x64-only anyway)
 !include "LogicLib.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.1.0"
+  !define VERSION "1.2.0"
 !endif
 !ifndef BUNDLE_DIR
   !define BUNDLE_DIR "..\build\TimingShiftFX.ofx.bundle"

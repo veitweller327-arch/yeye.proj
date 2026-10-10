@@ -1,8 +1,11 @@
-# Timing Shift FX – Ghost-Effekt für DaVinci Resolve 20 Studio
+# Timing Shift FX – Out-of-Sync-Film-Effekt für DaVinci Resolve 20 Studio
 
 Ein nativer **OpenFX-(OFX)-Videoeffekt in C++** für DaVinci Resolve 20 Studio
-unter Windows 10/11. Er legt ein **zeitlich versetztes, verschobenes und
-verzerrtes Geisterbild** über den Clip – der Look analoger Timing-Fehler.
+unter Windows 10/11. Er erzeugt den Look einer Filmkamera, deren Verschluss
+nicht mehr synchron zum Filmtransport läuft: **helle Bereiche ziehen in
+linearem Licht lange Schlieren in Laufrichtung**, optional mit zufällig
+schwankender Länge (Shake) und einem zeitversetzten Geisterbild.
+Die Regler entsprechen dem Referenzvideo ([Abgleich](docs/06-Video-Abgleich.md)).
 
 Du ziehst ihn auf der **Edit**- oder **Color**-Seite auf einen Clip und stellst
 ihn im **Inspector** ein.
@@ -15,9 +18,9 @@ ihn im **Inspector** ein.
 
 | Datei | Wofür |
 |-------|-------|
-| [`dist/TimingShiftFX-1.1.0-Windows-Setup.exe`](dist/TimingShiftFX-1.1.0-Windows-Setup.exe) | **Doppelklicken → installiert.** Empfohlen. |
-| [`dist/TimingShiftFX-1.1.0-Windows.zip`](dist/TimingShiftFX-1.1.0-Windows.zip) | Alternative: entpacken, `Install-TimingShiftFX.bat` doppelklicken |
-| [`dist/TimingShiftGhost-1.1.0.drfx`](dist/TimingShiftGhost-1.1.0.drfx) | **DRFX-Version** (Fusion-Effekt, gleiche Regler): bei geöffnetem Resolve doppelklicken → "Install". Nur Edit-Seite. [Details](docs/05-DRFX-Fusion-Version.md) |
+| [`dist/TimingShiftFX-1.2.0-Windows-Setup.exe`](dist/TimingShiftFX-1.2.0-Windows-Setup.exe) | **Doppelklicken → installiert.** Empfohlen. |
+| [`dist/TimingShiftFX-1.2.0-Windows.zip`](dist/TimingShiftFX-1.2.0-Windows.zip) | Alternative: entpacken, `Install-TimingShiftFX.bat` doppelklicken |
+| [`dist/TimingShiftGhost-1.1.0.drfx`](dist/TimingShiftGhost-1.1.0.drfx) | **DRFX-Version 1.1** (Fusion-Effekt, nur der einfache Ghost-Effekt, noch **ohne** die Video-Regler): bei geöffnetem Resolve doppelklicken → "Install". [Details](docs/05-DRFX-Fusion-Version.md) |
 
 1. Resolve schließen → Setup.exe doppelklicken → (SmartScreen: "Weitere
    Informationen" → "Trotzdem ausführen") → Admin-Frage mit "Ja" → Fertig.
@@ -26,33 +29,37 @@ ihn im **Inspector** ein.
 
 Ausführlich: **[docs/03-Installieren-und-Benutzen.md](docs/03-Installieren-und-Benutzen.md)**
 
-## Die Regler (nur diese fünf)
+## Die Regler
 
 | Regler | Was er macht |
 |--------|--------------|
-| **Ghost Amount** | Stärke des Geisterbildes (0 = aus, 1 = nur Geisterbild) |
-| **Ghost Distance** | Wie weit das Geisterbild verschoben ist (Pixel, bezogen auf 1080p) |
-| **Ghost Direction** | Richtung in Grad: 0 = rechts, 90 = oben, 180 = links, −90 = unten |
-| **Ghost Distortion** | Zieht das Geisterbild entlang der Richtung in die Länge (0 = scharfe Kopie) |
-| **Timing Offset (frames)** | Welcher Frame im Geisterbild zu sehen ist: +2 = 2 Frames zurück, −2 = 2 voraus, 0 = gleicher Frame |
+| **Input Gamma** | Gamma des Eingangsbilds (Rec.709, S-Log3, LogC3/4, DaVinci Intermediate, Linear) – die Schlieren werden in linearem Licht berechnet |
+| **Blur Strength** | Länge der Schlieren (1.0 = 150 px bei 1080p) |
+| **Blur Angle** | Richtung: 90 = nach oben, −90 = nach unten, 0 = rechts |
+| **Symmetric Blur** | Schlieren in beide Richtungen |
+| **Blur Edges** | Wrap-Around (realistisch, wie der Filmstreifen) oder Replicate |
+| **Cleanup Low / High** | Dunkle Bereiche bleiben sauber |
+| **Shake**: Enable, Smoothness, Blur Strength Min/Max, Reseed | Schlierenlänge schwankt zufällig über die Zeit |
+| **Ghost (Time Offset)**: Amount, Distance, Direction, Timing Offset | Optionales zeitversetztes Geisterbild (Standard: aus) |
 
 Alle Regler sind keyframebar. Der Look ist in HD, UHD und Proxy gleich, der
-Alpha-Kanal bleibt erhalten, es gibt keine schwarzen Ränder, und jeder Frame
-sieht bei jeder Wiedergabe identisch aus.
+Alpha-Kanal bleibt erhalten, und jeder Frame sieht bei jeder Wiedergabe
+identisch aus.
 
 ## Was getestet ist – und was nicht
 
 | Test | Ergebnis |
 |------|----------|
-| Bildkern-Unit-Tests (Richtung/Abstand/Verzerrung exakt, Stärke, Determinismus, keine Ränder/NaN, Alpha, HD/UHD, Render-Window) | ✅ bestanden |
-| Echte Plugin-Binary in einem Mini-OFX-Host (Linux): Laden, genau 5 Regler, Zeitzugriff inkl. Clipgrenzen, `isIdentity`, Rendern, Bildfreigabe | ✅ bestanden |
+| Bildkern-Unit-Tests: alle Gamma-Kurven (inkl. Referenzwerte), Schlierenrichtung/-länge, Symmetric, Wrap-Around vs. Replicate, Cleanup, Shake (Bereich, Glätte, Reseed), Ghost, Determinismus, keine Ränder/NaN, Alpha, HD/UHD | ✅ bestanden |
+| Echte Plugin-Binary in einem Mini-OFX-Host (Linux): Laden, alle Regler, Reseed-Button, Zeitzugriff inkl. Clipgrenzen, `isIdentity`, Rendern, Bildfreigabe | ✅ bestanden |
+| Optischer Abgleich der Standardwerte mit dem Referenzvideo | ✅ sehr ähnlich ([Details](docs/06-Video-Abgleich.md)) |
 | **Windows-DLL** im selben Mini-Host unter **Wine** | ✅ bestanden |
 | Setup.exe unter Wine: Installation, Laden aus dem Installationsordner, Deinstallation | ✅ bestanden |
 | DRFX: Lua-Syntax, Node-Verbindungen und Expressions (`scripts/check_fusion_setting.lua`) | ✅ bestanden |
 | **In DaVinci Resolve 20 Studio** (OFX und DRFX) | ⏳ **noch nicht** – hier gibt es kein Resolve. Das ist dein Prüfschritt 1. |
 
-CPU-Rechenzeit pro Frame (4 Kerne, ohne Dekodieren, Standardwerte bis Distortion 1):
-1080p 12–38 ms, 2160p 50–233 ms.
+CPU-Rechenzeit pro Frame (4 Kerne, Blur Strength 1, ohne Dekodieren):
+1080p 58 ms (senkrecht) bis 118 ms (schräger Winkel); 2160p 252–588 ms.
 
 ## Dokumentation
 
@@ -61,6 +68,7 @@ CPU-Rechenzeit pro Frame (4 Kerne, ohne Dekodieren, Standardwerte bis Distortion
 3. [Installieren & Benutzen](docs/03-Installieren-und-Benutzen.md)
 4. [Fehlerbehebung](docs/04-Fehlerbehebung.md)
 5. [DRFX-Version (Fusion)](docs/05-DRFX-Fusion-Version.md)
+6. [Abgleich mit dem Referenzvideo](docs/06-Video-Abgleich.md)
 
 ## Abhängigkeiten
 
