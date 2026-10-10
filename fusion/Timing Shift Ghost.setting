@@ -1,0 +1,165 @@
+--[[
+  Timing Shift Ghost - Fusion version of the Timing Shift FX ghost effect.
+  Edit-page effect for DaVinci Resolve (installed via TimingShiftGhost.drfx).
+
+  Node chain:
+    MainInput -> TSG_In ─┬─> TSG_Delay (TimeSpeed: Timing Offset)
+                         │     -> TSG_Shift (Transform: Distance + Direction)
+                         │     -> TSG_Smear (DirectionalBlur: Distortion)
+                         └────────────> TSG_Mix (Dissolve: Ghost Amount) -> MainOutput
+
+  The five controls live as user controls on TSG_Mix and are published to the
+  Inspector. Distances are in pixels at 1920x1080 (scaled proportionally for
+  other 16:9 resolutions). Not affiliated with ARRI.
+]]
+{
+	Tools = ordered() {
+		TimingShiftGhost = MacroOperator {
+			CtrlWZoom = false,
+			NameSet = true,
+			Inputs = ordered() {
+				MainInput1 = InstanceInput {
+					SourceOp = "TSG_In",
+					Source = "Input",
+				},
+				Input1 = InstanceInput {
+					SourceOp = "TSG_Mix",
+					Source = "GhostAmount",
+					Name = "Ghost Amount",
+					Default = 0.4,
+				},
+				Input2 = InstanceInput {
+					SourceOp = "TSG_Mix",
+					Source = "GhostDistance",
+					Name = "Ghost Distance",
+					Default = 40,
+				},
+				Input3 = InstanceInput {
+					SourceOp = "TSG_Mix",
+					Source = "GhostDirection",
+					Name = "Ghost Direction",
+					Default = 90,
+				},
+				Input4 = InstanceInput {
+					SourceOp = "TSG_Mix",
+					Source = "GhostDistortion",
+					Name = "Ghost Distortion",
+					Default = 0.3,
+				},
+				Input5 = InstanceInput {
+					SourceOp = "TSG_Mix",
+					Source = "TimingOffset",
+					Name = "Timing Offset (frames)",
+					Default = 2,
+				},
+			},
+			Outputs = {
+				MainOutput1 = InstanceOutput {
+					SourceOp = "TSG_Mix",
+					Source = "Output",
+				},
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				TSG_In = PipeRouter {
+					Inputs = {
+						Input = Input { },
+					},
+					ViewInfo = PipeRouterInfo { Pos = { 0, 0 } },
+				},
+				TSG_Delay = TimeSpeed {
+					Inputs = {
+						Speed = Input { Value = 1, },
+						Delay = Input { Expression = "TSG_Mix.TimingOffset", },
+						InterpolateBetweenFrames = Input { Value = 0, },
+						Input = Input { SourceOp = "TSG_In", Source = "Output", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 110, -50 } },
+				},
+				TSG_Shift = Transform {
+					Inputs = {
+						Center = Input {
+							Expression = "Point(0.5 + TSG_Mix.GhostDistance * (1 - TSG_Mix.GhostDistortion / 2) * cos(TSG_Mix.GhostDirection * pi / 180) / 1920, 0.5 + TSG_Mix.GhostDistance * (1 - TSG_Mix.GhostDistortion / 2) * sin(TSG_Mix.GhostDirection * pi / 180) / 1080)",
+						},
+						Edges = Input { Value = 2, },
+						Input = Input { SourceOp = "TSG_Delay", Source = "Output", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 220, -50 } },
+				},
+				TSG_Smear = DirectionalBlur {
+					Inputs = {
+						Type = Input { Value = 2, },
+						Length = Input { Expression = "TSG_Mix.GhostDistance * TSG_Mix.GhostDistortion / 1920", },
+						Angle = Input { Expression = "TSG_Mix.GhostDirection", },
+						Input = Input { SourceOp = "TSG_Shift", Source = "Output", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 330, -50 } },
+				},
+				TSG_Mix = Dissolve {
+					Transitions = {
+						[0] = "DFTDissolve",
+					},
+					Inputs = {
+						Mix = Input { Expression = "GhostAmount", },
+						Background = Input { SourceOp = "TSG_In", Source = "Output", },
+						Foreground = Input { SourceOp = "TSG_Smear", Source = "Output", },
+						GhostAmount = Input { Value = 0.4, },
+						GhostDistance = Input { Value = 40, },
+						GhostDirection = Input { Value = 90, },
+						GhostDistortion = Input { Value = 0.3, },
+						TimingOffset = Input { Value = 2, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 440, 0 } },
+					UserControls = ordered() {
+						GhostAmount = {
+							LINKS_Name = "Ghost Amount",
+							LINKID_DataType = "Number",
+							INPID_InputControl = "SliderControl",
+							INP_Default = 0.4,
+							INP_MinScale = 0, INP_MaxScale = 1,
+							INP_MinAllowed = 0, INP_MaxAllowed = 1,
+							ICS_ControlPage = "Controls",
+						},
+						GhostDistance = {
+							LINKS_Name = "Ghost Distance",
+							LINKID_DataType = "Number",
+							INPID_InputControl = "SliderControl",
+							INP_Default = 40,
+							INP_MinScale = 0, INP_MaxScale = 500,
+							INP_MinAllowed = 0, INP_MaxAllowed = 4000,
+							ICS_ControlPage = "Controls",
+						},
+						GhostDirection = {
+							LINKS_Name = "Ghost Direction",
+							LINKID_DataType = "Number",
+							INPID_InputControl = "ScrewControl",
+							INP_Default = 90,
+							INP_MinScale = -180, INP_MaxScale = 180,
+							ICS_ControlPage = "Controls",
+						},
+						GhostDistortion = {
+							LINKS_Name = "Ghost Distortion",
+							LINKID_DataType = "Number",
+							INPID_InputControl = "SliderControl",
+							INP_Default = 0.3,
+							INP_MinScale = 0, INP_MaxScale = 1,
+							INP_MinAllowed = 0, INP_MaxAllowed = 1,
+							ICS_ControlPage = "Controls",
+						},
+						TimingOffset = {
+							LINKS_Name = "Timing Offset (frames)",
+							LINKID_DataType = "Number",
+							INPID_InputControl = "SliderControl",
+							INP_Integer = true,
+							INP_Default = 2,
+							INP_MinScale = -12, INP_MaxScale = 12,
+							INP_MinAllowed = -12, INP_MaxAllowed = 12,
+							ICS_ControlPage = "Controls",
+						},
+					},
+				},
+			},
+		},
+	},
+	ActiveTool = "TimingShiftGhost",
+}

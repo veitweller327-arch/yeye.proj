@@ -37,3 +37,7 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j
           ctest --test-dir build --output-on-failure
+      - name: Check Fusion macro (DRFX)
+        run: |
+          sudo apt-get install -y -qq lua5.1
+          lua5.1 scripts/check_fusion_setting.lua "fusion/Timing Shift Ghost.setting"

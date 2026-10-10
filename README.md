@@ -17,6 +17,7 @@ ihn im **Inspector** ein.
 |-------|-------|
 | [`dist/TimingShiftFX-1.1.0-Windows-Setup.exe`](dist/TimingShiftFX-1.1.0-Windows-Setup.exe) | **Doppelklicken → installiert.** Empfohlen. |
 | [`dist/TimingShiftFX-1.1.0-Windows.zip`](dist/TimingShiftFX-1.1.0-Windows.zip) | Alternative: entpacken, `Install-TimingShiftFX.bat` doppelklicken |
+| [`dist/TimingShiftGhost-1.1.0.drfx`](dist/TimingShiftGhost-1.1.0.drfx) | **DRFX-Version** (Fusion-Effekt, gleiche Regler): bei geöffnetem Resolve doppelklicken → "Install". Nur Edit-Seite. [Details](docs/05-DRFX-Fusion-Version.md) |
 
 1. Resolve schließen → Setup.exe doppelklicken → (SmartScreen: "Weitere
    Informationen" → "Trotzdem ausführen") → Admin-Frage mit "Ja" → Fertig.
@@ -47,7 +48,8 @@ sieht bei jeder Wiedergabe identisch aus.
 | Echte Plugin-Binary in einem Mini-OFX-Host (Linux): Laden, genau 5 Regler, Zeitzugriff inkl. Clipgrenzen, `isIdentity`, Rendern, Bildfreigabe | ✅ bestanden |
 | **Windows-DLL** im selben Mini-Host unter **Wine** | ✅ bestanden |
 | Setup.exe unter Wine: Installation, Laden aus dem Installationsordner, Deinstallation | ✅ bestanden |
-| **In DaVinci Resolve 20 Studio** | ⏳ **noch nicht** – hier gibt es kein Resolve. Das ist dein Prüfschritt 1. |
+| DRFX: Lua-Syntax, Node-Verbindungen und Expressions (`scripts/check_fusion_setting.lua`) | ✅ bestanden |
+| **In DaVinci Resolve 20 Studio** (OFX und DRFX) | ⏳ **noch nicht** – hier gibt es kein Resolve. Das ist dein Prüfschritt 1. |
 
 CPU-Rechenzeit pro Frame (4 Kerne, ohne Dekodieren, Standardwerte bis Distortion 1):
 1080p 12–38 ms, 2160p 50–233 ms.
@@ -58,6 +60,7 @@ CPU-Rechenzeit pro Frame (4 Kerne, ohne Dekodieren, Standardwerte bis Distortion
 2. [Selbst bauen](docs/02-Bauen.md) – Visual Studio 2022 + CMake
 3. [Installieren & Benutzen](docs/03-Installieren-und-Benutzen.md)
 4. [Fehlerbehebung](docs/04-Fehlerbehebung.md)
+5. [DRFX-Version (Fusion)](docs/05-DRFX-Fusion-Version.md)
 
 ## Abhängigkeiten
 
